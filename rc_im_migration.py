@@ -64,6 +64,9 @@ def _current_rc(odoo):
 
 
 def _create_main_transfer(odoo, agg):
+    stale = odoo.search_read("stock.picking", [["origin","=","RC→IM cleanup 2026-09-26"],["state","not in",["done","cancel"]]], ["id","state"], limit=20)
+    for p in stale:
+        odoo.call("stock.picking","action_cancel",ids=[p["id"]])
     normal = []
     for pid, vals in agg.items():
         if pid in KEEP_IDS or pid in REMAP or pid in SPECIAL_CASES:
@@ -83,7 +86,7 @@ def _create_main_transfer(odoo, agg):
     names = {x["id"]: x["display_name"] for x in products}
     for pid, qty in normal:
         odoo.call("stock.move","create",vals_list={
-            "name": names.get(pid, str(pid)),
+            "description_picking": names.get(pid, str(pid)),
             "product_id": pid,
             "product_uom_qty": qty,
             "location_id": SRC,
