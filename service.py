@@ -1,21 +1,23 @@
+import os
 import threading
-from flask import Flask, jsonify
-from gift_card_worker import OdooClient, ShopifyClient, configure_products, import_cards, activate_pending_cards, log
+
+from flask import Flask, jsonify, request
+
+from gift_card_worker import OdooClient, ShopifyClient, log
+from production_worker import activate_pending_real_cards, production_setup
 
 app = Flask(__name__)
 lock = threading.Lock()
+WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "")
 
 
 def cycle(setup=False):
     if not lock.acquire(blocking=False):
         return 0
     try:
-        odoo = OdooClient()
+        odoo = production_setup() if setup else OdooClient()
         shopify = ShopifyClient()
-        if setup:
-            configure_products(odoo)
-            import_cards(odoo)
-        return activate_pending_cards(odoo, shopify)
+        return activate_pending_real_cards(odoo, shopify)
     finally:
         lock.release()
 
@@ -23,9 +25,9 @@ def cycle(setup=False):
 def bootstrap():
     try:
         activated = cycle(setup=True)
-        log("Startup bootstrap complete; activated=%s" % activated)
+        log("Production bootstrap complete; activated=%s" % activated)
     except Exception as exc:
-        log("Startup bootstrap failed: %s" % exc)
+        log("Production bootstrap failed: %s" % exc)
 
 
 threading.Thread(target=bootstrap, daemon=True).start()
@@ -41,10 +43,12 @@ def health():
     return jsonify({"ok": True})
 
 
-@app.get("/tick")
+@app.route("/tick", methods=["GET", "POST"])
 def tick():
+    if not WEBHOOK_SECRET or request.args.get("token") != WEBHOOK_SECRET:
+        return jsonify({"ok": False, "error": "unauthorized"}), 401
     try:
-        count = cycle(setup=True)
+        count = cycle(setup=False)
         return jsonify({"ok": True, "activated": count})
     except Exception as exc:
         log("tick failed: %s" % exc)
