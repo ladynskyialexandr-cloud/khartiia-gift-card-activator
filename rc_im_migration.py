@@ -52,6 +52,22 @@ def _move_special_cases(odoo):
     return 373
 
 
+
+def _move_reserved_pen_source_to_im(odoo):
+    # One pen is reserved by an existing representative-expense move.
+    # Re-source that reservation to IM, then the physical RC unit can be transferred.
+    ml = odoo.search_read(
+        "stock.move.line",
+        [["id","=",27],["product_id","=",36],["state","=","assigned"]],
+        ["id","move_id","location_id","location_dest_id","quantity"],
+        limit=1,
+    )
+    if ml and _m2o(ml[0].get("location_id")) == SRC:
+        move_id = _m2o(ml[0].get("move_id"))
+        odoo.call("stock.move","write",ids=[move_id],vals={"location_id":DST})
+        odoo.call("stock.move.line","write",ids=[27],vals={"location_id":DST})
+        log("Re-sourced reserved representative-expense pen from RC to IM")
+
 def _current_rc(odoo):
     qs = odoo.search_read("stock.quant", [["location_id","=",SRC],["quantity",">",0]], ["id","product_id","quantity","reserved_quantity"], limit=2000)
     agg = {}
@@ -142,6 +158,7 @@ def execute():
     odoo = OdooClient()
     _cancel_partial(odoo)
     _move_special_cases(odoo)
+    _move_reserved_pen_source_to_im(odoo)
     agg = _current_rc(odoo)
     main = _create_main_transfer(odoo, agg)
     remapped = _reclass_legacy(odoo)
