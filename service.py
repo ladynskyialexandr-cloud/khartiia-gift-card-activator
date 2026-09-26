@@ -5,6 +5,7 @@ from gift_card_worker import OdooClient, ShopifyClient, configure_products, impo
 app = Flask(__name__)
 lock = threading.Lock()
 
+
 def cycle(setup=False):
     if not lock.acquire(blocking=False):
         return 0
@@ -18,13 +19,27 @@ def cycle(setup=False):
     finally:
         lock.release()
 
+
+def bootstrap():
+    try:
+        activated = cycle(setup=True)
+        log("Startup bootstrap complete; activated=%s" % activated)
+    except Exception as exc:
+        log("Startup bootstrap failed: %s" % exc)
+
+
+threading.Thread(target=bootstrap, daemon=True).start()
+
+
 @app.get("/")
 def root():
     return jsonify({"ok": True, "service": "khartiia-gift-card-activator"})
 
+
 @app.get("/health")
 def health():
     return jsonify({"ok": True})
+
 
 @app.get("/tick")
 def tick():
