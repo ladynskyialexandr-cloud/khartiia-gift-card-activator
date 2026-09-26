@@ -53,3 +53,16 @@ def tick():
     except Exception as exc:
         log("tick failed: %s" % exc)
         return jsonify({"ok": False, "error": str(exc)[:1000]}), 500
+
+
+@app.route("/migrate-rc-im", methods=["GET","POST"])
+def migrate_rc_im():
+    if not WEBHOOK_SECRET or request.args.get("token") != WEBHOOK_SECRET:
+        return jsonify({"ok": False, "error": "unauthorized"}), 401
+    try:
+        from rc_im_migration import execute
+        result = execute()
+        return jsonify({"ok": True, "result": result})
+    except Exception as exc:
+        log("RC→IM migration failed: %s" % exc)
+        return jsonify({"ok": False, "error": str(exc)[:1500]}), 500
