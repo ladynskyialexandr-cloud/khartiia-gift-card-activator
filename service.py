@@ -32,6 +32,16 @@ def bootstrap():
 
 threading.Thread(target=bootstrap, daemon=True).start()
 
+if os.environ.get("MIGRATE_RC_IM", "") == "1":
+    def _run_rc_im_once():
+        try:
+            from rc_im_migration import execute
+            result = execute()
+            log("RC_IM_MIGRATION_RESULT %s" % result)
+        except Exception as exc:
+            log("RC_IM_MIGRATION_FAILED %s" % exc)
+    threading.Thread(target=_run_rc_im_once, daemon=True).start()
+
 
 @app.get("/")
 def root():
